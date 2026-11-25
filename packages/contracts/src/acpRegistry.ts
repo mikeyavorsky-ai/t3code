@@ -325,6 +325,7 @@ export const AcpRegistryOperationErrorReason = Schema.Literals([
   "registry_unavailable",
   "runner_unavailable",
   "session_import_failed",
+  "session_history_read_failed",
   "session_delete_unsupported",
   "session_delete_failed",
   "session_list_unsupported",

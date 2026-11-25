@@ -5475,6 +5475,14 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 update.messageId
                   ? update.messageId
                   : null;
+              const timestamp =
+                sourceMessageId === null ? undefined : update._meta?.["switchboard/createdAtMs"];
+              const loadedAt =
+                typeof timestamp === "number" &&
+                Number.isFinite(timestamp) &&
+                Math.abs(timestamp) <= 8.64e15
+                  ? DateTime.makeUnsafe(timestamp)
+                  : now;
               const startsNew =
                 current.loadingRole !== role ||
                 (sourceMessageId !== null && current.loadingMessageId !== sourceMessageId);
@@ -5498,8 +5506,8 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 text: replace ? text : `${previous?.text ?? ""}${text}`,
                 attachments: [],
                 streaming: false,
-                createdAt: previous?.createdAt ?? now,
-                updatedAt: now,
+                createdAt: previous?.createdAt ?? loadedAt,
+                updatedAt: loadedAt,
               });
               return {
                 ...current,

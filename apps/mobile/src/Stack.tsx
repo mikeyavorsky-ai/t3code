@@ -865,7 +865,8 @@ const RootStackConfig = createWorkspaceStackNavigator({
     ConnectionsNew: createNativeStackScreen({
       screen: ConnectionsNewRouteScreen,
       linking: "connections/new",
-      options: sheetRoute({ detent: 0.55, maxDetent: 0.7 }),
+      // Keep the direct address and code fields visible below the QR control on the Duo.
+      options: sheetRoute({ detent: 0.8, maxDetent: 0.95 }),
     }),
     NotFound: createNativeStackScreen({
       screen: NotFoundScreen,

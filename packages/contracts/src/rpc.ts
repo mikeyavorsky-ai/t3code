@@ -45,7 +45,13 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
-import { IsoDateTime, NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  IsoDateTime,
+  MessageId,
+  NonNegativeInt,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { SecretReference } from "./secretReference.ts";
 import {
@@ -618,6 +624,8 @@ export const WS_METHODS = {
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
   serverAcceptAcpRegistryUrlAuth: "server.acceptAcpRegistryUrlAuth",
   serverListAcpRegistrySessions: "server.listAcpRegistrySessions",
+  serverReadSwitchboardHistory: "server.readSwitchboardHistory",
+  serverListSwitchboardSessions: "server.listSwitchboardSessions",
   serverImportAcpRegistrySession: "server.importAcpRegistrySession",
   serverDeleteAcpRegistrySession: "server.deleteAcpRegistrySession",
   serverListAcpRegistryProviders: "server.listAcpRegistryProviders",
@@ -1077,6 +1085,35 @@ const WsServerAcceptAcpRegistryUrlAuthRpc = Rpc.make(WS_METHODS.serverAcceptAcpR
 const WsServerListAcpRegistrySessionsRpc = Rpc.make(WS_METHODS.serverListAcpRegistrySessions, {
   payload: AcpRegistryListSessionsInput,
   success: AcpRegistryListSessionsResult,
+  error: Schema.Union([AcpRegistryOperationError, EnvironmentAuthorizationError]),
+});
+
+const WsServerListSwitchboardSessionsRpc = Rpc.make(WS_METHODS.serverListSwitchboardSessions, {
+  payload: Schema.Struct({
+    projectId: AcpRegistryListSessionsInput.fields.projectId,
+    cursor: AcpRegistryListSessionsInput.fields.cursor,
+  }),
+  success: Schema.NullOr(
+    AcpRegistryListSessionsResult.mapFields((fields) => ({
+      ...fields,
+      instanceId: ProviderInstanceId,
+    })),
+  ),
+  error: Schema.Union([AcpRegistryOperationError, EnvironmentAuthorizationError]),
+});
+
+const WsServerReadSwitchboardHistoryRpc = Rpc.make(WS_METHODS.serverReadSwitchboardHistory, {
+  payload: Schema.Struct({ threadId: ThreadId }),
+  success: Schema.NullOr(
+    Schema.Array(
+      Schema.Struct({
+        id: MessageId,
+        role: Schema.Literals(["user", "assistant"]),
+        text: Schema.String,
+        createdAt: IsoDateTime,
+      }),
+    ),
+  ),
   error: Schema.Union([AcpRegistryOperationError, EnvironmentAuthorizationError]),
 });
 
@@ -2539,6 +2576,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerUninstallAcpRegistryManagedBinaryRpc,
   WsServerAcceptAcpRegistryUrlAuthRpc,
   WsServerListAcpRegistrySessionsRpc,
+  WsServerReadSwitchboardHistoryRpc,
+  WsServerListSwitchboardSessionsRpc,
   WsServerImportAcpRegistrySessionRpc,
   WsServerDeleteAcpRegistrySessionRpc,
   WsServerListAcpRegistryProvidersRpc,

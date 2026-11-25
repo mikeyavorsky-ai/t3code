@@ -280,6 +280,7 @@ const makeImporter = Effect.fn(function* (
   return {
     run: importer.importRecentAgentThreads({ projectId }),
     importNativeHistory: importer.importNativeHistory,
+    readNativeHistorySnapshot: importer.readNativeHistorySnapshot,
     published,
   };
 });
@@ -628,6 +629,7 @@ it.effect(
       const opened: Array<ProviderAdapter.ProviderAdapterV2OpenSessionInput> = [];
       let closed = false;
       let failRead = true;
+      let externalTurn = false;
       const replayed = (role: "user" | "assistant", text: string) => ({
         createdBy: role === "user" ? ("user" as const) : ("agent" as const),
         creationSource: "provider" as const,
@@ -666,6 +668,12 @@ it.effect(
                           replayed("assistant", "Check the build log"),
                           replayed("assistant", "Fixed it"),
                           replayed("assistant", " "),
+                          ...(externalTurn
+                            ? [
+                                replayed("user", "External prompt"),
+                                replayed("assistant", "External reply"),
+                              ]
+                            : []),
                         ],
                       }),
               } as Pick<ProviderAdapter.ProviderAdapterV2SessionRuntime, "readThreadSnapshot">;
@@ -713,6 +721,36 @@ it.effect(
       );
       expect(yield* importHistory).toBe(0);
       expect(opened).toHaveLength(2);
+      const readHistory = importer.readNativeHistorySnapshot({
+        threadId,
+        workspaceRoot: "/workspace/project",
+      });
+      expect(
+        yield* importer.readNativeHistorySnapshot({
+          threadId,
+          workspaceRoot: "/workspace/project",
+          expectedInstanceId: "not-the-linked-provider",
+        }),
+      ).toBeNull();
+      expect(opened).toHaveLength(2);
+      const before = yield* readHistory;
+      externalTurn = true;
+      const after = yield* readHistory;
+      expect(after?.messages.map(({ text }) => text)).toEqual([
+        "Fix the build",
+        "Check the build log",
+        "Fixed it",
+        " ",
+        "External prompt",
+        "External reply",
+      ]);
+      expect(after?.messages.slice(0, 4).map(({ id }) => id)).toEqual(
+        before?.messages.map(({ id }) => id),
+      );
+      expect((yield* readHistory)?.messages.map(({ id }) => id)).toEqual(
+        after?.messages.map(({ id }) => id),
+      );
+      expect(opened).toHaveLength(5);
       const page = yield* projections.getTimelinePage(threadId, { view: "activity", limit: 10 });
       expect(
         page.items.map(({ item }) => [

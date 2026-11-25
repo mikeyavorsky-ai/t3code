@@ -84,6 +84,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.serverUninstallAcpRegistryManagedBinary]: "server",
   [WS_METHODS.serverAcceptAcpRegistryUrlAuth]: "server",
   [WS_METHODS.serverListAcpRegistrySessions]: "server",
+  [WS_METHODS.serverReadSwitchboardHistory]: "server",
+  [WS_METHODS.serverListSwitchboardSessions]: "server",
   [WS_METHODS.serverImportAcpRegistrySession]: "server",
   [WS_METHODS.serverDeleteAcpRegistrySession]: "server",
   [WS_METHODS.serverListAcpRegistryProviders]: "server",

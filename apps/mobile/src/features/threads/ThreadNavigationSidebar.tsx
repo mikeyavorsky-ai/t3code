@@ -81,6 +81,7 @@ import {
 } from "./threadListV2";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
+import { ProjectSwitchboardSessions } from "./ProjectSwitchboardSessions";
 
 type SidebarListItem =
   | ThreadListV2ListItem
@@ -215,6 +216,16 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     [projectScopes],
   );
   const selectedProjectScope = resolveHomeProjectFilterScope(projectScopes, projects, options);
+  const durableSessions =
+    props.visible && props.searchQuery.trim() === ""
+      ? selectedProjectScope?.projectRefs.map(({ environmentId, projectId }) => (
+          <ProjectSwitchboardSessions
+            key={scopedProjectKey(environmentId, projectId)}
+            project={{ environmentId, id: projectId }}
+            onOpen={(params) => selectDetail({ name: "Thread", params })}
+          />
+        ))
+      : null;
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
     props.searchQuery,
@@ -536,7 +547,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   };
   const header = (
     <WorkspaceListHeader
-      accessibilityLabel={gt("{appName}, Threads", { appName: "T3 Code" })}
+      accessibilityLabel={gt("{appName}, Threads", { appName: "Switchboard" })}
       onOpenEnvironments={props.onOpenEnvironmentSettings}
       onOpenSettings={props.onOpenSettings}
       search={{
@@ -616,6 +627,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             <GestureDetector gesture={sidebarScrollGesture}>
               <AnimatedLegendList
                 renderScrollComponent={NativeScrollView}
+                ListFooterComponent={
+                  durableSessions?.length ? <View>{durableSessions}</View> : undefined
+                }
                 itemLayoutAnimation={THREAD_LIST_ROW_LAYOUT}
                 data={listItems}
                 drawDistance={500}

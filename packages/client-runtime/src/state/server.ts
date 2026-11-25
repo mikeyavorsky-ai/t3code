@@ -1897,6 +1897,23 @@ export function createServerEnvironmentAtoms<R, E>(
           `${environmentId}:${input.instanceId}:${input.projectId}:${input.cursor ?? "first"}`,
       },
     }),
+    listSwitchboardSessions: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:switchboard:list-sessions",
+      tag: WS_METHODS.serverListSwitchboardSessions,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) =>
+          `${environmentId}:${input.projectId}:${input.cursor ?? ""}`,
+      },
+    }),
+    readSwitchboardHistory: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:switchboard:read-history",
+      tag: WS_METHODS.serverReadSwitchboardHistory,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.threadId}`,
+      },
+    }),
     importAcpRegistrySession: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:acp-registry:import-session",
       tag: WS_METHODS.serverImportAcpRegistrySession,

@@ -79,7 +79,7 @@ function withExtensionDisplayNameBuildSetting(config, displayName) {
 }
 
 module.exports = function withShareExtensionDisplayName(config) {
-  const displayName = config.name;
+  const displayName = config.ios?.infoPlist?.CFBundleDisplayName ?? config.name;
   return withExtensionDisplayNameBuildSetting(
     withDisplayNamePlist(config, displayName),
     displayName,

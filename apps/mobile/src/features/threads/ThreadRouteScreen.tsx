@@ -9,6 +9,7 @@ import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setu
 import { AppBar } from "../../components/ui/AppBar";
 import {
   StackActions,
+  useIsFocused,
   useNavigation,
   useRoute,
   type StaticScreenProps,
@@ -90,6 +91,11 @@ import { draftRouteIdentity } from "./thread-route-state";
 import { NewTaskDraftRouteScreen, type NewTaskDraftRouteParams } from "./NewTaskDraftRouteScreen";
 import { GitOverviewSheet } from "./git/GitOverviewSheet";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { serverEnvironment } from "../../state/server";
+import {
+  mergeSwitchboardHistoryFeed,
+  type SwitchboardHistoryMessage,
+} from "./switchboard-history-feed";
 import { useSelectedThreadGitActions } from "../../state/use-selected-thread-git-actions";
 import { useSelectedThreadGitState } from "../../state/use-selected-thread-git-state";
 import { useSelectedThreadRequests } from "../../state/use-selected-thread-requests";
@@ -436,6 +442,37 @@ function ThreadRouteContent(
     label: "load earlier thread history",
     reportFailure: false,
   });
+  const readSwitchboardHistory = useAtomCommand(serverEnvironment.readSwitchboardHistory, {
+    reportFailure: false,
+  });
+  const requestSwitchboardHistory = useEffectEvent(readSwitchboardHistory);
+  const focused = useIsFocused();
+  const historyEnvironmentId = selectedThread?.environmentId;
+  const historyThreadId = selectedThread?.id;
+  const historyRunCompletedAt = selectedThread?.latestRun?.completedAt;
+  const [canonical, setCanonical] = useState<{
+    key: string;
+    rows: ReadonlyArray<SwitchboardHistoryMessage> | null;
+  } | null>(null);
+  const canonicalKey =
+    historyEnvironmentId && historyThreadId
+      ? scopedThreadKey(historyEnvironmentId, historyThreadId)
+      : null;
+  useEffect(() => {
+    if (!focused || !historyEnvironmentId || !historyThreadId || !canonicalKey) return;
+    let cancelled = false;
+    void requestSwitchboardHistory({
+      environmentId: historyEnvironmentId,
+      input: { threadId: historyThreadId },
+    }).then((result) => {
+      if (!cancelled && result._tag === "Success") {
+        setCanonical({ key: canonicalKey, rows: result.value });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [focused, historyEnvironmentId, historyThreadId, canonicalKey, historyRunCompletedAt]);
   const historyControls = (() => {
     const history = selectedThreadDetailState.history;
     if (!selectedThread) {
@@ -1064,7 +1101,16 @@ function ThreadRouteContent(
           environmentLabel={selectedEnvironmentConnection?.environmentLabel ?? null}
           feedbackSubmissions={composer.feedbackSubmissions}
           onDismissFeedback={composer.dismissFeedback}
-          selectedThreadFeed={composer.selectedThreadFeed}
+          selectedThreadFeed={
+            canonical?.key === canonicalKey && canonical.rows
+              ? mergeSwitchboardHistoryFeed(
+                  composer.selectedThreadFeed,
+                  canonical.rows,
+                  selectedThread.id,
+                  selectedThreadDetailState.history.hasMoreHistory,
+                )
+              : composer.selectedThreadFeed
+          }
           pendingHandoff={composer.pendingHandoff}
           activityRun={composer.selectedThreadActivityRun}
           activeWorkStartedAt={

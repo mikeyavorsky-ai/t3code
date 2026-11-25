@@ -84,6 +84,12 @@ describe("RPC authorization scopes", () => {
     }
   });
 
+  it("requires orchestration read permission for Switchboard history", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.serverReadSwitchboardHistory)).toBe(
+      AuthOrchestrationReadScope,
+    );
+  });
+
   it("lets thread readers observe and refresh checkout branches", () => {
     for (const method of [WS_METHODS.subscribeVcsBranch, WS_METHODS.vcsRefreshBranch]) {
       expect(requiredScopeForRpcMethod(method)).toBe(AuthOrchestrationReadScope);

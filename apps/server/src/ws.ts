@@ -1,6 +1,7 @@
 import { GitCommandError, OrchestrationDispatchCommandError } from "@t3tools/contracts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- A synchronous digest inside the pure provider mapping.
 import * as NodeCrypto from "node:crypto";
+import { realpath } from "node:fs/promises";
 import * as FeatureFlags from "@t3tools/shared/FeatureFlags";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
@@ -106,6 +107,7 @@ import {
   RpcClientId,
   EnvironmentAuthorizationError,
   ThreadId,
+  ProviderInstanceId,
   type TerminalMetadataStreamEvent,
   type PullRequestRef,
   WS_METHODS,
@@ -1664,12 +1666,14 @@ export const layerWsRpc = (
 
       const listAcpRegistrySessions = Effect.fn("ws.acpRegistry.listSessions")(function* (
         input: AcpRegistryListSessionsInput,
+        discoveryOnly = false,
       ) {
         const project = yield* acpRegistrySessions.project(input.projectId);
         const { instance, manager } = yield* acpRegistrySessions.sessionManager(input.instanceId);
-        // Only a probed agent advertises listing, so a read never installs or first-starts one.
+        // Generic ACP listing requires a prior probe. Switchboard discovery is
+        // explicitly enabled by the host and must also work after a cold restart.
         const snapshot = yield* instance.snapshot.getSnapshot;
-        if (snapshot.nativeSessions?.canList !== true) {
+        if (!discoveryOnly && snapshot.nativeSessions?.canList !== true) {
           return yield* new AcpRegistryOperationError({
             reason: "session_list_unsupported",
             message: "The ACP agent does not advertise session listing.",
@@ -1679,8 +1683,21 @@ export const layerWsRpc = (
           cwd: project.workspaceRoot,
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         });
+        let candidates = listed.sessions;
+        if (discoveryOnly) {
+          // Native realpath also canonicalizes casing on case-insensitive volumes.
+          const resolve = (path: string) => Effect.promise(() => realpath(path).catch(() => path));
+          const root = yield* resolve(project.workspaceRoot);
+          const paths = yield* Effect.forEach(new Set(candidates.map(({ cwd }) => cwd)), (cwd) =>
+            resolve(cwd).pipe(Effect.map((resolved) => [cwd, resolved] as const)),
+          );
+          const matching = new Set(
+            paths.filter(([, resolved]) => resolved === root).map(([cwd]) => cwd),
+          );
+          candidates = candidates.filter(({ cwd }) => matching.has(cwd));
+        }
         const sessions = yield* Effect.forEach(
-          listed.sessions,
+          candidates,
           (session) => {
             const idInput = {
               driver: instance.driverKind,
@@ -2529,6 +2546,66 @@ export const layerWsRpc = (
             "provider.instance_id": input.instanceId,
             "project.id": input.projectId,
           }).pipe(Effect.andThen(listAcpRegistrySessions(input))),
+        [WS_METHODS.serverListSwitchboardSessions]: (input) =>
+          Effect.gen(function* () {
+            const configured = process.env.SWITCHBOARD_HISTORY_INSTANCE_ID?.trim();
+            if (!configured) return null;
+            const instanceId = ProviderInstanceId.make(configured);
+            const page = yield* listAcpRegistrySessions({ ...input, instanceId }, true);
+            return {
+              ...page,
+              instanceId,
+              sessions: page.sessions.filter((session) => session.importedThreadId === null),
+            };
+          }),
+        [WS_METHODS.serverReadSwitchboardHistory]: ({ threadId }) =>
+          Effect.gen(function* () {
+            const expectedInstanceId = process.env.SWITCHBOARD_HISTORY_INSTANCE_ID?.trim();
+            if (!expectedInstanceId) return null;
+            const shell = yield* threadManagement.getThreadShell(threadId);
+            if (shell === null || shell.modelSelection.instanceId !== expectedInstanceId)
+              return null;
+            const { workspaceRoot } = yield* acpRegistrySessions.project(shell.projectId);
+            const snapshot = yield* agentSessionImporter.readNativeHistorySnapshot({
+              threadId,
+              workspaceRoot,
+              expectedInstanceId,
+            });
+            if (snapshot === null) return null;
+            const reasoningIds = new Set(snapshot.reasoningMessageIds);
+            return snapshot.messages.flatMap(({ id, role, text, createdAt }) =>
+              (role === "user" || role === "assistant") &&
+              text.trim() !== "" &&
+              !reasoningIds.has(id)
+                ? [
+                    {
+                      id,
+                      role,
+                      text:
+                        role === "user"
+                          ? (
+                              /^(?:<t3_code_instructions>|<t3_code_orchestration_instructions>)[\s\S]*?<\/t3_code_(?:orchestration_)?instructions>\n\n<user_request>\n([\s\S]*)\n<\/user_request>(?=\s*(?:<runtime_info>|$))/.exec(
+                                text,
+                              )?.[1] ?? text
+                            ).replace(
+                              /^\[T3 Code: this message came through T3 Code's tools, not from the user typing in this chat\.\]\n\n/,
+                              "",
+                            )
+                          : text,
+                      createdAt: DateTime.formatIso(createdAt),
+                    },
+                  ]
+                : [],
+            );
+          }).pipe(
+            Effect.mapError(
+              () =>
+                new AcpRegistryOperationError({
+                  reason: "session_history_read_failed",
+                  message: "Could not read Switchboard history.",
+                }),
+            ),
+          ),
         [WS_METHODS.serverImportAcpRegistrySession]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,

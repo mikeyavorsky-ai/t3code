@@ -546,19 +546,51 @@ const make = Effect.gen(function* () {
       );
     const records = yield* pendingThread;
     if (records === null) return 0;
-    const { thread, providerThreads } = records;
+    const snapshot = yield* readNativeHistorySnapshot(input);
+    if (snapshot === null) return 0;
+    const reasoningIds = new Set(snapshot.reasoningMessageIds);
+    const messages = snapshot.messages.flatMap((message) =>
+      (message.role === "user" || message.role === "assistant") && message.text.trim() !== ""
+        ? [
+            {
+              role: reasoningIds.has(message.id) ? ("reasoning" as const) : message.role,
+              text: message.text,
+              createdAt: DateTime.formatIso(message.createdAt),
+            },
+          ]
+        : [],
+    );
+    // Loading the session can take a while, and the thread is usable meanwhile.
+    return yield* commit(messages);
+  });
+
+  // Read the provider snapshot without copying messages into the T3 event log.
+  const readNativeHistorySnapshot = Effect.fn("readNativeHistorySnapshot")(function* (input: {
+    readonly threadId: ThreadId;
+    readonly workspaceRoot: string;
+    readonly expectedInstanceId?: string;
+  }) {
+    const { thread, providerThreads } = yield* orchestrator.getThreadRecords(input.threadId, [
+      "providerThreads",
+    ]);
     const providerThread = providerThreads.find(
       (candidate) => candidate.appThreadId === input.threadId && candidate.nativeThreadRef !== null,
     );
+    if (
+      input.expectedInstanceId !== undefined &&
+      (thread.modelSelection.instanceId !== input.expectedInstanceId ||
+        providerThread?.providerInstanceId !== input.expectedInstanceId)
+    )
+      return null;
     const nativeThreadId = providerThread?.nativeThreadRef?.nativeId;
-    if (providerThread === undefined || nativeThreadId == null) return 0;
+    if (providerThread === undefined || nativeThreadId == null) return null;
     const providerSessionId = yield* idAllocator.allocate.providerSession({
       providerInstanceId: providerThread.providerInstanceId,
       threadId: input.threadId,
     });
     // The registry admits this open against sign-in changes, like any other open.
     const adapter = yield* registry.get(thread.modelSelection.instanceId);
-    const snapshot = yield* adapter
+    return yield* adapter
       .openSession({
         threadId: input.threadId,
         providerSessionId,
@@ -580,23 +612,9 @@ const make = Effect.gen(function* () {
         Effect.timeout(NATIVE_HISTORY_READ_TIMEOUT),
         Effect.scoped,
       );
-    const reasoningIds = new Set(snapshot.reasoningMessageIds);
-    const messages = snapshot.messages.flatMap((message) =>
-      (message.role === "user" || message.role === "assistant") && message.text.trim() !== ""
-        ? [
-            {
-              role: reasoningIds.has(message.id) ? ("reasoning" as const) : message.role,
-              text: message.text,
-              createdAt: DateTime.formatIso(message.createdAt),
-            },
-          ]
-        : [],
-    );
-    // Loading the session can take a while, and the thread is usable meanwhile.
-    return yield* commit(messages);
   });
 
-  return { importRecentAgentThreads, importNativeHistory };
+  return { importRecentAgentThreads, importNativeHistory, readNativeHistorySnapshot };
 });
 
 type AgentSessionImporterShape = Effect.Success<typeof make>;

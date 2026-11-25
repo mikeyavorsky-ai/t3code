@@ -3,7 +3,7 @@ import "./src/features/development/render-counter-entry";
 import "./src/features/development/behavior-probe-entry";
 // Crash reporting loads preferences, which can load GT and capture Hermes's Intl constructors.
 import "./src/i18n/intl-polyfills";
-// Record errors thrown while the rest of the app loads.
+// Disable native crash dispatch as early as possible for direct-only builds.
 import "./src/features/observability/observe";
 import { registerRootComponent } from "expo";
 import "react-native-gesture-handler";
