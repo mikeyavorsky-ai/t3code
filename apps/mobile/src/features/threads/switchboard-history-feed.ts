@@ -17,6 +17,7 @@ export function mergeSwitchboardHistoryFeed(
 ): ReadonlyArray<ThreadFeedEntry> {
   if (history.length === 0) return feed;
   const matches = new Map<number, number>();
+  let unmatchedRun = false;
   const step = hasEarlierProjection ? -1 : 1;
   let cursor = hasEarlierProjection ? history.length - 1 : 0;
   for (
@@ -40,12 +41,20 @@ export function mergeSwitchboardHistoryFeed(
         match = position;
       }
     }
-    // A newer live projection or divergent history cannot be reconciled safely.
-    if (match < 0) return feed;
+    // A cancelled turn may exist only in the projection. Keep it, but require
+    // a subsequent match before trusting this snapshot to add canonical rows.
+    if (match < 0) {
+      if (step < 0 && matches.size === 0) return feed;
+      unmatchedRun = true;
+      continue;
+    }
+    unmatchedRun = false;
     matches.set(index, match);
     cursor = match + step;
   }
-  if (matches.size === 0 && feed.some((entry) => entry.type === "message")) return feed;
+  if (unmatchedRun || (matches.size === 0 && feed.some((entry) => entry.type === "message"))) {
+    return feed;
+  }
 
   const merged: ThreadFeedEntry[] = [];
   let next = hasEarlierProjection ? cursor + 1 : 0;

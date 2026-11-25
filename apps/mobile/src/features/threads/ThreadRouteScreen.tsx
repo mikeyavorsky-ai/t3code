@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import { useGT, useMessages } from "gt-react-native";
+import { AppState } from "react-native";
 import * as Option from "effect/Option";
 import {
   AuthOrchestrationOperateScope,
@@ -461,16 +462,38 @@ function ThreadRouteContent(
   useEffect(() => {
     if (!focused || !historyEnvironmentId || !historyThreadId || !canonicalKey) return;
     let cancelled = false;
-    void requestSwitchboardHistory({
-      environmentId: historyEnvironmentId,
-      input: { threadId: historyThreadId },
-    }).then((result) => {
-      if (!cancelled && result._tag === "Success") {
-        setCanonical({ key: canonicalKey, rows: result.value });
+    let reading = false;
+    let hasCanonicalHistory = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      if (cancelled || reading || AppState.currentState === "background") return;
+      reading = true;
+      try {
+        const result = await requestSwitchboardHistory({
+          environmentId: historyEnvironmentId,
+          input: { threadId: historyThreadId },
+        });
+        if (!cancelled && result._tag === "Success") {
+          hasCanonicalHistory = result.value !== null;
+          setCanonical({ key: canonicalKey, rows: result.value });
+        }
+      } finally {
+        reading = false;
+        // External voice turns do not update the local run-completion timestamp.
+        if (!cancelled && hasCanonicalHistory && AppState.currentState === "active") {
+          timer = setTimeout(() => void refresh(), 15_000);
+        }
       }
+    };
+    const subscription = AppState.addEventListener("change", (state) => {
+      clearTimeout(timer);
+      if (state === "active") void refresh();
     });
+    void refresh();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      subscription.remove();
     };
   }, [focused, historyEnvironmentId, historyThreadId, canonicalKey, historyRunCompletedAt]);
   const historyControls = (() => {
