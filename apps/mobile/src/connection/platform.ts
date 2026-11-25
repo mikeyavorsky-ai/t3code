@@ -150,7 +150,9 @@ const layerCapabilities = Layer.effectContext(
         clerkToken: Effect.fail(
           new ConnectionBlockedError({
             reason: "authentication",
-            detail: m(msg("Hosted connections are disabled. Add the environment by its direct address.")),
+            detail: m(
+              msg("Hosted connections are disabled. Add the environment by its direct address."),
+            ),
           }),
         ),
       }),

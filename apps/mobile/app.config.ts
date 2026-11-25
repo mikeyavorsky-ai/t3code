@@ -21,10 +21,17 @@ const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 const distributionTeamId = repoEnv.SWITCHBOARD_IOS_TEAM_ID?.trim();
 const distributionBundleId = repoEnv.SWITCHBOARD_IOS_BUNDLE_ID?.trim();
 if (distributionTeamId !== undefined || distributionBundleId !== undefined) {
-  if (isIosPersonalTeamBuild || !distributionTeamId || !/^[A-Z0-9]{10}$/.test(distributionTeamId) ||
-      !distributionBundleId || !IOS_BUNDLE_IDENTIFIER_PATTERN.test(distributionBundleId) ||
-      /^com\.t3tools\./i.test(distributionBundleId)) {
-    throw new Error("Set both SWITCHBOARD_IOS_TEAM_ID and an independent SWITCHBOARD_IOS_BUNDLE_ID for distribution; do not enable Personal Team mode.");
+  if (
+    isIosPersonalTeamBuild ||
+    !distributionTeamId ||
+    !/^[A-Z0-9]{10}$/.test(distributionTeamId) ||
+    !distributionBundleId ||
+    !IOS_BUNDLE_IDENTIFIER_PATTERN.test(distributionBundleId) ||
+    /^com\.t3tools\./i.test(distributionBundleId)
+  ) {
+    throw new Error(
+      "Set both SWITCHBOARD_IOS_TEAM_ID and an independent SWITCHBOARD_IOS_BUNDLE_ID for distribution; do not enable Personal Team mode.",
+    );
   }
 }
 
@@ -257,7 +264,9 @@ const config: ExpoConfig = {
     appleTeamId: distributionTeamId ?? "ARK85ZXQ4Z",
     // Direct pairing uses the app scheme; don't register upstream domains with iOS.
     entitlements: {
-      "keychain-access-groups": [`$(AppIdentifierPrefix)${distributionBundleId ?? variant.iosBundleIdentifier}`],
+      "keychain-access-groups": [
+        `$(AppIdentifierPrefix)${distributionBundleId ?? variant.iosBundleIdentifier}`,
+      ],
     },
     infoPlist: {
       CFBundleDisplayName: "Switchboard",

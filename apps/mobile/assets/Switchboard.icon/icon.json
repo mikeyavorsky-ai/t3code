@@ -1,62 +1,54 @@
 {
-  "fill" : {
-    "automatic-gradient" : "display-p3:0.84259,0.42036,0.00880,1.00000",
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
+  "fill": {
+    "automatic-gradient": "display-p3:0.84259,0.42036,0.00880,1.00000",
+    "orientation": {
+      "start": {
+        "x": 0.5,
+        "y": 0
       },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
+      "stop": {
+        "x": 0.5,
+        "y": 0.7
       }
     }
   },
-  "groups" : [
+  "groups": [
     {
-      "layers" : [
+      "layers": [
         {
-          "glass" : false,
-          "image-name" : "command.svg",
-          "name" : "command",
-          "position-specializations" : [
+          "glass": false,
+          "image-name": "command.svg",
+          "name": "command",
+          "position-specializations": [
             {
-              "idiom" : "square",
-              "value" : {
-                "scale" : 6.5,
-                "translation-in-points" : [
-                  0,
-                  0
-                ]
+              "idiom": "square",
+              "value": {
+                "scale": 6.5,
+                "translation-in-points": [0, 0]
               }
             },
             {
-              "idiom" : "watchOS",
-              "value" : {
-                "scale" : 6.9,
-                "translation-in-points" : [
-                  0,
-                  0
-                ]
+              "idiom": "watchOS",
+              "value": {
+                "scale": 6.9,
+                "translation-in-points": [0, 0]
               }
             }
           ]
         }
       ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
       },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
       }
     }
   ],
-  "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
-    "squares" : "shared"
+  "supported-platforms": {
+    "circles": ["watchOS"],
+    "squares": "shared"
   }
 }
