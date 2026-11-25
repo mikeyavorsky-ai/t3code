@@ -149,7 +149,12 @@ const make = Effect.gen(function* () {
   ) {
     const { workspaceRoot } = yield* project(input.projectId);
     const { instance } = yield* sessionManager(input.instanceId);
-    const providerSnapshot = yield* instance.snapshot.getSnapshot;
+    let providerSnapshot = yield* instance.snapshot.getSnapshot;
+    // Discovery can run before the first capability probe has populated the snapshot.
+    if (providerSnapshot.nativeSessions === undefined) {
+      yield* instance.snapshot.refresh;
+      providerSnapshot = yield* instance.snapshot.getSnapshot;
+    }
     if (
       providerSnapshot.nativeSessions?.canLoad !== true &&
       providerSnapshot.nativeSessions?.canResume !== true
