@@ -531,15 +531,33 @@ export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeCo
       .pipe(Effect.mapError(AcpRegistrySupport.toAcpRegistryOperationError));
 
     const openSession = Effect.gen(function* () {
-      const spawn = yield* isolateDeepSeekProbeHistory(
-        input.settings.commandPath,
-        resolved.spawn,
-      ).pipe(
+      const spawn = yield* Effect.gen(function* () {
+        const executable = (input.settings.commandPath || resolved.spawn.command).split(/[\\/]/u).at(-1);
+        const script = (resolved.spawn.args[0] ?? "").split(/[\\/]/u).at(-1);
+        if (
+          executable === "switchboard-acp.mjs" ||
+          ((executable === "node" || executable === "node.exe") && script === "switchboard-acp.mjs")
+        ) {
+          // Switchboard persists session/new and has no session/delete. Keep probe sessions disposable.
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-switchboard-acp-probe-" });
+          return {
+            ...resolved.spawn,
+            extendEnv: resolved.spawn.extendEnv ?? resolved.spawn.env === undefined,
+            env: {
+              ...resolved.spawn.env,
+              SWITCHBOARD_STATE_PATH: path.join(directory, "sessions.sqlite"),
+            },
+          };
+        }
+        return yield* isolateDeepSeekProbeHistory(input.settings.commandPath, resolved.spawn);
+      }).pipe(
         Effect.mapError(
           (cause) =>
             new AcpRegistryOperationError({
               reason: "probe_failed",
-              message: "Could not prepare temporary history for the DeepSeek Harness probe.",
+              message: "Could not prepare temporary history for the ACP agent probe.",
               cause,
             }),
         ),
