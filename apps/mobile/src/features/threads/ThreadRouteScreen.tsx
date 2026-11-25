@@ -459,6 +459,7 @@ function ThreadRouteContent(
     historyEnvironmentId && historyThreadId
       ? scopedThreadKey(historyEnvironmentId, historyThreadId)
       : null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- owns the focused history poll timer and AppState listener.
   useEffect(() => {
     if (!focused || !historyEnvironmentId || !historyThreadId || !canonicalKey) return;
     let cancelled = false;
@@ -468,21 +469,19 @@ function ThreadRouteContent(
     const refresh = async () => {
       if (cancelled || reading || AppState.currentState === "background") return;
       reading = true;
-      try {
-        const result = await requestSwitchboardHistory({
-          environmentId: historyEnvironmentId,
-          input: { threadId: historyThreadId },
-        });
-        if (!cancelled && result._tag === "Success") {
-          hasCanonicalHistory = result.value !== null;
-          setCanonical({ key: canonicalKey, rows: result.value });
-        }
-      } finally {
-        reading = false;
-        // External voice turns do not update the local run-completion timestamp.
-        if (!cancelled && hasCanonicalHistory && AppState.currentState === "active") {
-          timer = setTimeout(() => void refresh(), 15_000);
-        }
+      // A rejected request during reconnect should not clear the last snapshot.
+      const result = await requestSwitchboardHistory({
+        environmentId: historyEnvironmentId,
+        input: { threadId: historyThreadId },
+      }).catch(() => null);
+      if (!cancelled && result?._tag === "Success") {
+        hasCanonicalHistory = result.value !== null;
+        setCanonical({ key: canonicalKey, rows: result.value });
+      }
+      reading = false;
+      // External voice turns do not update the local run-completion timestamp.
+      if (!cancelled && hasCanonicalHistory && AppState.currentState === "active") {
+        timer = setTimeout(() => void refresh(), 15_000);
       }
     };
     const subscription = AppState.addEventListener("change", (state) => {
@@ -495,6 +494,7 @@ function ThreadRouteContent(
       clearTimeout(timer);
       subscription.remove();
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- refresh immediately after a local run completes, without waiting for the next poll.
   }, [focused, historyEnvironmentId, historyThreadId, canonicalKey, historyRunCompletedAt]);
   const historyControls = (() => {
     const history = selectedThreadDetailState.history;
