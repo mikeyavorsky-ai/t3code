@@ -1,4 +1,11 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Pressable, View } from "react-native";
 import { useGT } from "gt-react-native";
 import {
@@ -17,6 +24,24 @@ type CatalogRow = { key: string; title: string; updatedAt: string; element: Reac
 type CatalogPage = { rows: readonly CatalogRow[]; footer: ReactNode };
 type CatalogProject = Pick<EnvironmentProject, "environmentId" | "id">;
 type OnOpen = (params: { environmentId: string; threadId: string }) => void;
+
+// Keep data (not rendered elements or handlers) across native tab remounts.
+const catalogCache = new Map<
+  string,
+  {
+    rows: readonly AcpRegistrySession[];
+    instance: ProviderInstanceId;
+    cursor: string | null;
+  }
+>();
+function rememberCatalog(key: string, value: NonNullable<ReturnType<typeof catalogCache.get>>) {
+  catalogCache.delete(key);
+  catalogCache.set(key, value);
+  if (catalogCache.size > 64) {
+    const oldest = catalogCache.keys().next().value;
+    if (oldest !== undefined) catalogCache.delete(oldest);
+  }
+}
 
 export function SwitchboardSessionList({
   projects,
@@ -63,9 +88,11 @@ function ProjectSwitchboardSessions({
   const list = useAtomCommand(serverEnvironment.listSwitchboardSessions);
   const link = useAtomCommand(serverEnvironment.importAcpRegistrySession);
   const canOperate = useEnvironmentScope(project.environmentId, AuthOrchestrationOperateScope);
-  const [rows, setRows] = useState<readonly AcpRegistrySession[]>([]);
-  const [instance, setInstance] = useState<ProviderInstanceId | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const key = `${project.environmentId}:${project.id}`;
+  const [initial] = useState(() => catalogCache.get(key));
+  const [rows, setRows] = useState<readonly AcpRegistrySession[]>(initial?.rows ?? []);
+  const [instance, setInstance] = useState<ProviderInstanceId | null>(initial?.instance ?? null);
+  const [cursor, setCursor] = useState<string | null>(initial?.cursor ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(false);
@@ -98,6 +125,7 @@ function ProjectSwitchboardSessions({
       if (result._tag !== "Success") throw new Error("List failed");
       const page = result.value;
       if (!active.current) return;
+      if (page === null) catalogCache.delete(key);
       setInstance(page?.instanceId ?? null);
       setCursor(page?.nextCursor === after ? null : (page?.nextCursor ?? null));
       setRows((previous) => [
@@ -121,7 +149,6 @@ function ProjectSwitchboardSessions({
     };
   }, []);
 
-  const key = `${project.environmentId}:${project.id}`;
   const renderedRows = rows.map((row) => ({
     key: `${key}:${row.sessionId}`,
     title: row.title || gt("Session {id}", { id: row.sessionId }),
@@ -188,9 +215,12 @@ function ProjectSwitchboardSessions({
       )}
     </View>
   );
-  const publish = useEffectEvent(() => onPage(key, { rows: renderedRows, footer }));
+  const publish = useEffectEvent(() => {
+    if (instance !== null) rememberCatalog(key, { rows, instance, cursor });
+    onPage(key, { rows: renderedRows, footer });
+  });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Publish catalog responses to the combined list.
-  useEffect(() => {
+  useLayoutEffect(() => {
     publish();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Republish the view when its inputs change.
   }, [rows, cursor, busy, error, instance, canOperate]);
