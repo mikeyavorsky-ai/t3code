@@ -306,7 +306,8 @@ export const make = Effect.gen(function* () {
       mcpHostedApproval: true,
       shellThreadFamilies: true,
       shellOlderSettled: true,
-      agentFeedback: true,
+      // Privacy fork: agent feedback is disabled.
+      agentFeedback: false,
     },
   };
 

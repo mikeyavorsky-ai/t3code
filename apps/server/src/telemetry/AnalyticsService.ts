@@ -417,3 +417,15 @@ export const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(AnalyticsService, make);
+
+// Privacy fork: never derives an install identity, buffers events, or opens a connection.
+export const layerDisabled = Layer.succeed(
+  AnalyticsService,
+  AnalyticsService.of({
+    record: Effect.fn("AnalyticsService.record")(function* () {
+      return false;
+    }),
+    flush: Effect.void,
+    recordOwners: Effect.fn("AnalyticsService.recordOwners")(function* () {}),
+  }),
+);
