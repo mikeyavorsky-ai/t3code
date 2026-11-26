@@ -1,7 +1,7 @@
 import { GitCommandError, OrchestrationDispatchCommandError } from "@t3tools/contracts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- A synchronous digest inside the pure provider mapping.
 import * as NodeCrypto from "node:crypto";
-import { realpath } from "node:fs/promises";
+import * as NodeFSP from "node:fs/promises";
 import * as FeatureFlags from "@t3tools/shared/FeatureFlags";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
@@ -1686,7 +1686,8 @@ export const layerWsRpc = (
         let candidates = listed.sessions;
         if (discoveryOnly) {
           // Native realpath also canonicalizes casing on case-insensitive volumes.
-          const resolve = (path: string) => Effect.promise(() => realpath(path).catch(() => path));
+          const resolve = (path: string) =>
+            Effect.promise(() => NodeFSP.realpath(path).catch(() => path));
           const root = yield* resolve(project.workspaceRoot);
           const paths = yield* Effect.forEach(new Set(candidates.map(({ cwd }) => cwd)), (cwd) =>
             resolve(cwd).pipe(Effect.map((resolved) => [cwd, resolved] as const)),
@@ -2546,18 +2547,23 @@ export const layerWsRpc = (
             "provider.instance_id": input.instanceId,
             "project.id": input.projectId,
           }).pipe(Effect.andThen(listAcpRegistrySessions(input))),
+        // oxlint-disable-next-line t3code/prefer-effect-fn -- Inline program owned by this RPC handler.
         [WS_METHODS.serverListSwitchboardSessions]: (input) =>
           Effect.gen(function* () {
             const configured = process.env.SWITCHBOARD_HISTORY_INSTANCE_ID?.trim();
             if (!configured) return null;
             const instanceId = ProviderInstanceId.make(configured);
-            const page = yield* listAcpRegistrySessions({ ...input, instanceId }, true);
+            const { includeLinked, ...catalogInput } = input;
+            const page = yield* listAcpRegistrySessions({ ...catalogInput, instanceId }, true);
             return {
               ...page,
               instanceId,
-              sessions: page.sessions.filter((session) => session.importedThreadId === null),
+              sessions: includeLinked
+                ? page.sessions
+                : page.sessions.filter((session) => session.importedThreadId === null),
             };
           }),
+        // oxlint-disable-next-line t3code/prefer-effect-fn -- Inline program owned by this RPC handler.
         [WS_METHODS.serverReadSwitchboardHistory]: ({ threadId }) =>
           Effect.gen(function* () {
             const expectedInstanceId = process.env.SWITCHBOARD_HISTORY_INSTANCE_ID?.trim();

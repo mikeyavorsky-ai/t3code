@@ -81,7 +81,7 @@ import {
 } from "./threadListV2";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
-import { ProjectSwitchboardSessions } from "./ProjectSwitchboardSessions";
+import { SwitchboardSessionList } from "./ProjectSwitchboardSessions";
 
 type SidebarListItem =
   | ThreadListV2ListItem
@@ -217,18 +217,16 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   );
   const selectedProjectScope = resolveHomeProjectFilterScope(projectScopes, projects, options);
   const durableSessions =
-    props.visible && props.searchQuery.trim() === ""
-      ? (
+    Platform.OS === "ios" && props.visible ? (
+      <SwitchboardSessionList
+        projects={(
           selectedProjectScope?.projectRefs ??
           pickableProjectGroups(projectScopes).flatMap((group) => group.projectRefs)
-        ).map(({ environmentId, projectId }) => (
-          <ProjectSwitchboardSessions
-            key={scopedProjectKey(environmentId, projectId)}
-            project={{ environmentId, id: projectId }}
-            onOpen={(params) => selectDetail({ name: "Thread", params })}
-          />
-        ))
-      : null;
+        ).map((ref) => ({ environmentId: ref.environmentId, id: ref.projectId }))}
+        query={props.searchQuery}
+        onOpen={(params) => selectDetail({ name: "Thread", params })}
+      />
+    ) : null;
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
     props.searchQuery,
@@ -630,11 +628,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             <GestureDetector gesture={sidebarScrollGesture}>
               <AnimatedLegendList
                 renderScrollComponent={NativeScrollView}
-                ListHeaderComponent={
-                  durableSessions?.length ? <View>{durableSessions}</View> : undefined
-                }
+                ListHeaderComponent={durableSessions ? <View>{durableSessions}</View> : undefined}
                 itemLayoutAnimation={THREAD_LIST_ROW_LAYOUT}
-                data={listItems}
+                data={[]}
                 drawDistance={500}
                 estimatedItemSize={64}
                 extraData={listExtraData}
@@ -659,7 +655,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 style={styles.threadList}
-                ListEmptyComponent={listEmpty}
+                ListEmptyComponent={durableSessions ? undefined : listEmpty}
               />
             </GestureDetector>
           </SwipeableScrollGateProvider>
@@ -683,16 +679,13 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
           overflow: "hidden",
         }}
       >
-        {listItems.length === 0 && !durableSessions?.length ? (
+        {listItems.length === 0 && !durableSessions ? (
           <View className="flex-1 items-center justify-center">{listEmpty}</View>
         ) : (
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
               {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- The Android sidebar has no native header to register with. */}
               <AnimatedLegendList
-                ListHeaderComponent={
-                  durableSessions?.length ? <View>{durableSessions}</View> : undefined
-                }
                 itemLayoutAnimation={THREAD_LIST_ROW_LAYOUT}
                 data={listItems}
                 drawDistance={500}
@@ -715,7 +708,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 style={styles.threadList}
-                ListEmptyComponent={listEmpty}
+                ListEmptyComponent={durableSessions ? undefined : listEmpty}
               />
             </GestureDetector>
           </SwipeableScrollGateProvider>

@@ -1090,6 +1090,7 @@ const WsServerListAcpRegistrySessionsRpc = Rpc.make(WS_METHODS.serverListAcpRegi
 
 const WsServerListSwitchboardSessionsRpc = Rpc.make(WS_METHODS.serverListSwitchboardSessions, {
   payload: Schema.Struct({
+    includeLinked: Schema.optionalKey(Schema.Boolean),
     projectId: AcpRegistryListSessionsInput.fields.projectId,
     cursor: AcpRegistryListSessionsInput.fields.cursor,
   }),

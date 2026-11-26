@@ -103,7 +103,7 @@ import { useFabScroll } from "./FabScrollContext";
 import { holdLaunchSplashForHomeRows, settleLaunchSplashHomeRows } from "./home-launch-splash";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import { ThreadListFilters } from "./ThreadListFilters";
-import { ProjectSwitchboardSessions } from "../threads/ProjectSwitchboardSessions";
+import { SwitchboardSessionList } from "../threads/ProjectSwitchboardSessions";
 import { deriveHomeEmptyState } from "./home-empty-state";
 
 interface HomeScreenProps {
@@ -352,18 +352,16 @@ export function HomeScreen(props: HomeScreenProps) {
     v2ProjectScopeKey,
   );
   const durableSessions =
-    props.visible && props.searchQuery.trim() === ""
-      ? (
+    Platform.OS === "ios" && props.visible ? (
+      <SwitchboardSessionList
+        projects={(
           v2ScopedProjectGroup?.projectRefs ??
           pickableProjectGroups(projectScopes).flatMap((group) => group.projectRefs)
-        ).map(({ environmentId, projectId }) => (
-          <ProjectSwitchboardSessions
-            key={scopedProjectKey(environmentId, projectId)}
-            project={{ environmentId, id: projectId }}
-            onOpen={props.onOpenDurableSession}
-          />
-        ))
-      : null;
+        ).map((ref) => ({ environmentId: ref.environmentId, id: ref.projectId }))}
+        query={props.searchQuery}
+        onOpen={props.onOpenDurableSession}
+      />
+    ) : null;
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
     props.searchQuery,
@@ -764,7 +762,7 @@ export function HomeScreen(props: HomeScreenProps) {
       />
     );
 
-  if (Platform.OS === "android" && threadListV2Items.length === 0 && !durableSessions?.length) {
+  if (Platform.OS === "android" && threadListV2Items.length === 0) {
     return (
       <ScreenContent surface="screen">
         <View
@@ -794,7 +792,7 @@ export function HomeScreen(props: HomeScreenProps) {
                 onTouchEnd={(event) => trackListTouches(event, false)}
                 onTouchCancel={(event) => trackListTouches(event, false)}
                 renderScrollComponent={Platform.OS === "ios" ? renderHomeScrollView : undefined}
-                data={threadListV2Items}
+                data={Platform.OS === "ios" ? [] : threadListV2Items}
                 renderItem={renderV2Item}
                 keyExtractor={v2KeyExtractor}
                 getItemType={(item) => item.type}
@@ -808,7 +806,9 @@ export function HomeScreen(props: HomeScreenProps) {
                 ListHeaderComponentStyle={{ zIndex: 1 }}
                 ListFooterComponent={
                   <View>
-                    {settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0 ? (
+                    {Platform.OS !== "ios" &&
+                    settledShelfExpanded &&
+                    threadListV2Layout.hiddenSettledCount > 0 ? (
                       <ThreadListV2ShowMoreRow
                         hiddenCount={threadListV2Layout.hiddenSettledCount}
                         {...(olderSettledShelf.loading
@@ -824,7 +824,7 @@ export function HomeScreen(props: HomeScreenProps) {
                     ) : null}
                   </View>
                 }
-                ListEmptyComponent={v2ListEmpty}
+                ListEmptyComponent={durableSessions ? undefined : v2ListEmpty}
                 style={{ flex: 1 }}
                 automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
                 contentInsetAdjustmentBehavior="never"
