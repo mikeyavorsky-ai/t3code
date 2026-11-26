@@ -2,16 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 
 import { faviconUrlForOrigin, toolActivityFaviconUrl } from "./favicon.ts";
 
+// Privacy fork: rendering never requests a remote icon.
 describe("faviconUrlForOrigin", () => {
-  it("sends only the public hostname and requested size, never the port", () => {
-    expect(faviconUrlForOrigin("https://github.com:8443/pingdotgg/t3code?private=query", 64)).toBe(
-      "https://www.google.com/s2/favicons?domain=github.com&sz=64",
-    );
-  });
-
-  // regression: #5838 no favicon request for missing or non-http origins
-  it.each([null, "invalid URL", "file:///tmp/private"])(
-    "rejects an invalid or unsupported origin %s",
+  it.each([null, "invalid URL", "file:///tmp/private", "https://github.com:8443/pingdotgg/t3code"])(
+    "never builds a favicon request for %s",
     (origin) => {
       expect(faviconUrlForOrigin(origin)).toBeNull();
     },
@@ -19,27 +13,34 @@ describe("faviconUrlForOrigin", () => {
 });
 
 describe("toolActivityFaviconUrl", () => {
-  it("uses the page origin instead of a third-party favicon service", () => {
-    expect(toolActivityFaviconUrl({ pageUrl: "https://example.com/docs/page?q=1" }, "light")).toBe(
-      "https://example.com/favicon.ico",
-    );
-    expect(toolActivityFaviconUrl({ pageUrl: "http://localhost:5173/app" }, "light")).toBe(
-      "http://localhost:5173/favicon.ico",
-    );
+  it("never fetches a page, CDN or provider-supplied remote icon", () => {
+    const icon = {
+      pageUrl: "https://github.com/pingdotgg/t3code",
+      faviconUrl: "https://example.com/icon.png",
+      faviconUrlDark: "http://example.com/icon-dark.png",
+    };
+    expect(toolActivityFaviconUrl(icon, "light")).toBeNull();
+    expect(toolActivityFaviconUrl(icon, "dark")).toBeNull();
+    expect(toolActivityFaviconUrl({ pageUrl: "https://example.com/docs" }, "light")).toBeNull();
   });
 
-  it("accepts provider-supplied image URLs but rejects extension URLs", () => {
+  it("keeps inline data icons, preferring the dark variant in dark mode", () => {
+    const light = "data:image/png;base64,AAAA";
+    const dark = "data:image/png;base64,BBBB";
+    expect(toolActivityFaviconUrl({ pageUrl: "https://x.test", faviconUrl: light }, "dark")).toBe(
+      light,
+    );
     expect(
       toolActivityFaviconUrl(
-        { pageUrl: "https://example.com/docs", faviconUrl: "https://example.com/icon.png" },
-        "light",
+        { pageUrl: "https://x.test", faviconUrl: light, faviconUrlDark: dark },
+        "dark",
       ),
-    ).toBe("https://example.com/icon.png");
+    ).toBe(dark);
     expect(
       toolActivityFaviconUrl(
-        { pageUrl: "https://example.com/docs", faviconUrl: "chrome-extension://example/_favicon/" },
+        { pageUrl: "https://x.test", faviconUrl: "chrome-extension://x/i.png" },
         "light",
       ),
-    ).toBe("https://example.com/favicon.ico");
+    ).toBeNull();
   });
 });
