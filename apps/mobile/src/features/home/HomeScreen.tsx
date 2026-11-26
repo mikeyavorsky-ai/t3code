@@ -643,7 +643,8 @@ export function HomeScreen(props: HomeScreenProps) {
         "this environment");
   const emptyState = deriveHomeEmptyState(props.catalogState, props.projects.length, m);
 
-  if (!hasAnyThreads) {
+  // A fresh connection can have durable sessions before it has any T3 thread projections.
+  if (!hasAnyThreads && !(Platform.OS === "ios" && props.projects.length > 0)) {
     return (
       <View className={containerClassName}>
         <ScreenContent surface={sidebarSurface ? "drawer" : "screen"}>
