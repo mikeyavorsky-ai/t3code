@@ -261,7 +261,10 @@ const layerService = (input: {
 }) =>
   ServerConfig.layerTest(process.cwd(), { prefix: input.prefix }).pipe(
     Layer.provideMerge(NodeServices.layer),
-    Layer.provideMerge(ServerSettings.layerTest(input.settings ?? {})),
+    // Privacy fork: update checks are opt-in, so these tests opt in.
+    Layer.provideMerge(
+      ServerSettings.layerTest({ enableProviderUpdateChecks: true, ...input.settings }),
+    ),
     Layer.provideMerge(layerHttpClient(input.response)),
   );
 

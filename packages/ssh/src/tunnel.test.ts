@@ -99,7 +99,11 @@ function commandArgs(command: ChildProcess.Command): ReadonlyArray<string> {
   return command._tag === "StandardCommand" ? command.args.map(String) : [];
 }
 
-const ARCHIVE = { archiveVersion: "1.2.3-preview.20260911.4" } as const;
+// Privacy fork: the runner downloads only from an explicitly named mirror.
+const ARCHIVE = {
+  archiveVersion: "1.2.3-preview.20260911.4",
+  releaseBaseUrl: "https://github.com/pingdotgg/t3code/releases/download",
+} as const;
 
 // Emulates `t3 serve`: it takes the home owner lock at startup, then binds
 // once a second server has tried the same home (or after 2s), so a concurrent
@@ -283,6 +287,37 @@ describe("ssh tunnel scripts", () => {
       }
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
+
+  it("never downloads a missing runtime without an explicit mirror", () => {
+    const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-ssh-runner-"));
+    try {
+      const bin = NodePath.join(root, "bin");
+      NodeFS.mkdirSync(bin);
+      NodeFS.mkdirSync(NodePath.join(root, "home"));
+      for (const tool of ["curl", "wget"]) {
+        NodeFS.writeFileSync(
+          NodePath.join(bin, tool),
+          "#!/bin/sh\necho 'download attempt' >&2\nexit 6\n",
+          { mode: 0o755 },
+        );
+      }
+      const runner = NodePath.join(root, "run-t3.sh");
+      NodeFS.writeFileSync(
+        runner,
+        SshTunnel.buildRemoteT3RunnerScript({ archiveVersion: ARCHIVE.archiveVersion }),
+      );
+      const result = NodeChildProcess.spawnSync("sh", [runner, "--version"], {
+        encoding: "utf8",
+        env: { HOME: NodePath.join(root, "home"), PATH: `${bin}:${process.env.PATH ?? ""}` },
+      });
+      assert.notEqual(result.status, 0);
+      assert.notInclude(result.stderr, "download attempt");
+      assert.include(result.stderr, "never downloads t3 automatically");
+      assert.include(result.stderr, ARCHIVE.archiveVersion);
+    } finally {
+      NodeFS.rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   it("rejects archive versions that are not a single exact version segment", () => {
     for (const archiveVersion of [

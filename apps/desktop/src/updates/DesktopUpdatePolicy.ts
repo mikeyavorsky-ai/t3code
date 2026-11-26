@@ -47,13 +47,20 @@ function resolveUpdatePolicy(document: ManagedPolicyDocument | undefined): Updat
   };
 }
 
+// Privacy fork: the updater never contacts a feed; fork builds are installed manually.
+const withoutUpdates = (policy: UpdatePolicy): UpdatePolicy => ({
+  ...policy,
+  mode: "off",
+  message: "Automatic updates are off in this build. Install new builds manually.",
+});
+
 const { logInfo, logError } = DesktopObservability.makeComponentLogger("desktop-update-policy");
 
 const make = Effect.gen(function* () {
   return yield* (yield* DesktopManagedPolicy.DesktopManagedPolicy).read.pipe(
     Effect.map((found) => ({
       source: found?.source,
-      policy: resolveUpdatePolicy(found?.document),
+      policy: withoutUpdates(resolveUpdatePolicy(found?.document)),
     })),
     Effect.tap(({ source, policy }) =>
       policy.message === null

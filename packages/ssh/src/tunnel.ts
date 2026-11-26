@@ -498,6 +498,11 @@ T3_RUNTIME_DIR="$HOME/.t3/runtime/versions/$T3_ARCHIVE_VERSION"
 t3_runtime_ready() {
   [ -x "$T3_RUNTIME_DIR/t3" ] && [ "$(cat "$T3_RUNTIME_DIR/.install-complete" 2>/dev/null)" = "$T3_ARCHIVE_VERSION" ]
 }
+# Privacy fork: never download a runtime unless the desktop names a mirror explicitly.
+if [ -z "$T3_RELEASE_BASE_URL" ] && ! t3_runtime_ready; then
+  printf 'This build never downloads t3 automatically, and t3 %s is not installed on this host. Install a matching build as t3 on PATH (t3 --version must print "t3 v%s"), or set T3CODE_RELEASE_BASE_URL on the desktop to a mirror you trust.\\n' "$T3_ARCHIVE_VERSION" "$T3_ARCHIVE_VERSION" >&2
+  exit 1
+fi
 if ! t3_runtime_ready; then
   mkdir -p "$HOME/.t3/runtime/versions"
   T3_LOCK="$HOME/.t3/runtime/versions/.$T3_ARCHIVE_VERSION.install.lock"
@@ -1162,10 +1167,12 @@ export function buildRemoteT3RunnerScript(input?: RemoteT3RunnerOptions): string
   if (archiveVersion !== "" && !EXACT_ARCHIVE_VERSION.test(archiveVersion)) {
     throw new SshInvalidArchiveVersionError({ archiveVersion });
   }
-  const releaseBaseUrl = cliReleaseDownloadBaseUrl("", input?.releaseBaseUrl ?? undefined).replace(
-    /\/v$/u,
-    "",
-  );
+  // Privacy fork: an empty base URL means the runner never downloads.
+  const explicitReleaseBaseUrl = input?.releaseBaseUrl?.trim() || undefined;
+  const releaseBaseUrl =
+    explicitReleaseBaseUrl === undefined
+      ? ""
+      : cliReleaseDownloadBaseUrl("", explicitReleaseBaseUrl).replace(/\/v$/u, "");
   return stripTrailingNewlines(
     applyScriptPlaceholders(REMOTE_RUNNER_SCRIPT, {
       T3_NODE_SCRIPT_PATH: shellSingleQuote(nodeScriptPath),
