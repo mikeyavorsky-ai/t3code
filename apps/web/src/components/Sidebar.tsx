@@ -174,6 +174,7 @@ import {
 import type { SidebarThreadSummary } from "../types";
 import { cn } from "~/lib/utils";
 import { ProjectEnvironmentBadge } from "./ProjectEnvironmentBadge";
+import { ProjectSwitchboardSessions } from "./ProjectSwitchboardSessions";
 import { ProjectRowActions } from "./ProjectComboboxRow";
 import {
   buildDraftActionMenuItems,
@@ -3342,6 +3343,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         }
       >
         <SidebarGroup className="flex-1" role="presentation">
+          {!isSearchingThreads &&
+            projectScopeKeys.length > 0 &&
+            scopedProjectRefs.map((project) => (
+              <ProjectSwitchboardSessions
+                key={`${project.environmentId}:${project.projectId}`}
+                project={{ environmentId: project.environmentId, id: project.projectId }}
+                onOpen={({ environmentId, threadId }) =>
+                  navigateToThread(scopeThreadRef(environmentId, threadId))
+                }
+              />
+            ))}
           {isSearchingThreads ? (
             threadSearchResults.length > 0 ? (
               <TooltipProvider
