@@ -172,7 +172,11 @@ function ProjectSwitchboardSessions({
   }));
   const footer = (
     <View key={key}>
-      {error !== null && <AppText>{error}</AppText>}
+      {error !== null && (
+        <AppText accessibilityRole="alert" className="px-3 py-2 text-sm text-muted-foreground">
+          {error}
+        </AppText>
+      )}
       {(cursor !== null || (error !== null && rows.length === 0)) && (
         <Button
           label={cursor === null ? gt("Retry") : gt("Show more")}

@@ -155,7 +155,11 @@ const make = Effect.gen(function* () {
       yield* instance.snapshot.refresh;
       providerSnapshot = yield* instance.snapshot.getSnapshot;
     }
+    // The configured Switchboard adapter implements session/load directly. Its
+    // generic provider probe can report no resume even though loading works.
+    const isSwitchboard = input.instanceId === process.env.SWITCHBOARD_HISTORY_INSTANCE_ID?.trim();
     if (
+      !isSwitchboard &&
       providerSnapshot.nativeSessions?.canLoad !== true &&
       providerSnapshot.nativeSessions?.canResume !== true
     ) {
