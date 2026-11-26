@@ -128,6 +128,7 @@ beforeEach(() => {
   native.languages = ["en", "fr"];
   readyModels.clear();
   readyModels.add("test-model");
+  readyModels.add(SILERO_VAD.id);
   readyModels.add("fallback-model");
 });
 
@@ -408,26 +409,12 @@ it.effect("preserves the current model when another client removes a selection c
   }).pipe(Effect.provide(layer)),
 );
 
-it.effect("bounds missing Silero recovery during recording and continues with raw audio", () =>
+it.effect("never downloads a missing Silero model during recording", () =>
   Effect.gen(function* () {
-    const helperStarted = yield* Deferred.make<void>();
-    const helperInterrupted = yield* Deferred.make<void>();
-    download.mockImplementationOnce(() =>
-      Deferred.succeed(helperStarted, undefined).pipe(
-        Effect.andThen(Effect.never),
-        Effect.onInterrupt(() => Deferred.succeed(helperInterrupted, undefined)),
-      ),
-    );
+    readyModels.delete(SILERO_VAD.id);
     const speech = yield* SpeechService.SpeechService;
-    const recording = yield* speech
-      .startStream(DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS)
-      .pipe(Effect.forkChild);
-    yield* Deferred.await(helperStarted);
-    yield* TestClock.adjust("14999 millis");
-    expect(native.begin).not.toHaveBeenCalled();
-    yield* TestClock.adjust("1 millis");
-    yield* Deferred.await(helperInterrupted);
-    const stream = yield* Fiber.join(recording);
+    const stream = yield* speech.startStream(DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS);
+    expect(download).not.toHaveBeenCalled();
     expect(native.begin).toHaveBeenLastCalledWith(expect.anything(), true, undefined);
     yield* stream.feed(pcm());
     expect(yield* stream.finish).toBe("hello");
@@ -436,6 +423,7 @@ it.effect("bounds missing Silero recovery during recording and continues with ra
 
 it.effect("keeps the installed speech model usable when optional Silero acquisition fails", () =>
   Effect.gen(function* () {
+    readyModels.delete(SILERO_VAD.id);
     download
       .mockImplementationOnce(() => Effect.succeed("test.gguf"))
       .mockImplementationOnce(() =>
@@ -463,7 +451,7 @@ it.effect("keeps the installed speech model usable when optional Silero acquisit
     expect(download).toHaveBeenCalledTimes(2);
     yield* TestClock.adjust("10 minutes");
     expect(yield* speech.transcribe(pcm(), DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS)).toBe("hello");
-    expect(download).toHaveBeenCalledTimes(3);
+    expect(download).toHaveBeenCalledTimes(2);
   }).pipe(Effect.provide(layer)),
 );
 

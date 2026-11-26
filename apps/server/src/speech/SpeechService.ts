@@ -292,8 +292,10 @@ const make = Effect.gen(function* () {
     purpose: "installation" | "recording",
   ) {
     if (purpose === "recording" && now() < silenceRetryAt) return undefined;
+    // Privacy fork: a recording only uses an installed VAD; downloads happen on explicit install.
+    if (purpose === "recording") return yield* store.installedPath(SILERO_VAD);
     const path = yield* store.download(SILERO_VAD).pipe(
-      Effect.timeout(purpose === "recording" ? "15 seconds" : "2 minutes"),
+      Effect.timeout("2 minutes"),
       Effect.orElseSucceed(() => undefined),
     );
     if (path !== undefined) {

@@ -149,6 +149,9 @@ export const layer = Layer.effect(
     const fetchCatalog = Effect.fn("CloudSpeech.catalog")(function* () {
       const unavailable = () =>
         new CloudSpeechError({ provider: "openrouter", reason: "unavailable" });
+      // Privacy fork: rendering voice settings never contacts OpenRouter before a key is saved.
+      if (!(yield* credentials.pipe(Effect.mapError(unavailable))).openrouter)
+        return yield* new CloudSpeechError({ provider: "openrouter", reason: "missing-key" });
       const response = yield* execute(HttpClientRequest.get(OPENROUTER_CATALOG_URL)).pipe(
         Effect.mapError(unavailable),
       );
