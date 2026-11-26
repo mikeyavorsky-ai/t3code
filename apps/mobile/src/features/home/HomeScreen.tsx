@@ -353,7 +353,10 @@ export function HomeScreen(props: HomeScreenProps) {
   );
   const durableSessions =
     props.visible && props.searchQuery.trim() === ""
-      ? v2ScopedProjectGroup?.projectRefs.map(({ environmentId, projectId }) => (
+      ? (
+          v2ScopedProjectGroup?.projectRefs ??
+          pickableProjectGroups(projectScopes).flatMap((group) => group.projectRefs)
+        ).map(({ environmentId, projectId }) => (
           <ProjectSwitchboardSessions
             key={scopedProjectKey(environmentId, projectId)}
             project={{ environmentId, id: projectId }}
@@ -716,6 +719,7 @@ export function HomeScreen(props: HomeScreenProps) {
           onProjectChange={props.onProjectChange}
         />
       ) : null}
+      {durableSessions}
     </>
   );
 
@@ -804,7 +808,6 @@ export function HomeScreen(props: HomeScreenProps) {
                 ListHeaderComponentStyle={{ zIndex: 1 }}
                 ListFooterComponent={
                   <View>
-                    {durableSessions}
                     {settledShelfExpanded && threadListV2Layout.hiddenSettledCount > 0 ? (
                       <ThreadListV2ShowMoreRow
                         hiddenCount={threadListV2Layout.hiddenSettledCount}

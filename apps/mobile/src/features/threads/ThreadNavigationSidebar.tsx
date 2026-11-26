@@ -218,7 +218,10 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const selectedProjectScope = resolveHomeProjectFilterScope(projectScopes, projects, options);
   const durableSessions =
     props.visible && props.searchQuery.trim() === ""
-      ? selectedProjectScope?.projectRefs.map(({ environmentId, projectId }) => (
+      ? (
+          selectedProjectScope?.projectRefs ??
+          pickableProjectGroups(projectScopes).flatMap((group) => group.projectRefs)
+        ).map(({ environmentId, projectId }) => (
           <ProjectSwitchboardSessions
             key={scopedProjectKey(environmentId, projectId)}
             project={{ environmentId, id: projectId }}
@@ -627,7 +630,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             <GestureDetector gesture={sidebarScrollGesture}>
               <AnimatedLegendList
                 renderScrollComponent={NativeScrollView}
-                ListFooterComponent={
+                ListHeaderComponent={
                   durableSessions?.length ? <View>{durableSessions}</View> : undefined
                 }
                 itemLayoutAnimation={THREAD_LIST_ROW_LAYOUT}
@@ -680,13 +683,16 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
           overflow: "hidden",
         }}
       >
-        {listItems.length === 0 ? (
+        {listItems.length === 0 && !durableSessions?.length ? (
           <View className="flex-1 items-center justify-center">{listEmpty}</View>
         ) : (
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
               {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- The Android sidebar has no native header to register with. */}
               <AnimatedLegendList
+                ListHeaderComponent={
+                  durableSessions?.length ? <View>{durableSessions}</View> : undefined
+                }
                 itemLayoutAnimation={THREAD_LIST_ROW_LAYOUT}
                 data={listItems}
                 drawDistance={500}

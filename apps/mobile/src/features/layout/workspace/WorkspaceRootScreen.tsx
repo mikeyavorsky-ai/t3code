@@ -50,6 +50,8 @@ import {
 } from "./useSystemWorkspaceTabBar";
 import { openSettings } from "../../settings/settings-navigation";
 
+import { WorkspaceBrandWithBuild } from "./brand-header-options";
+
 const TAB_TITLES = WORKSPACE_TAB_LABELS;
 
 function WorkspaceRootTitle(props: {
@@ -73,10 +75,15 @@ function WorkspaceRootTitle(props: {
           !settingsOpen && isSharedSlotTab(state.selectedTab) ? (
             <SharedSlotTitle tab={state.selectedTab} />
           ) : (
-            <CompactBrandTitle
-              accessibilityLabel={gt("{product}, {title}", { product: "T3 Code", title: tabTitle })}
-              fit
-            />
+            <WorkspaceBrandWithBuild width={maxWidth}>
+              <CompactBrandTitle
+                accessibilityLabel={gt("{product}, {title}", {
+                  product: "T3 Code",
+                  title: tabTitle,
+                })}
+                fit
+              />
+            </WorkspaceBrandWithBuild>
           )
         }
         maxWidth={maxWidth}

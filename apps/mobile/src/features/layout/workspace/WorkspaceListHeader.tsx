@@ -53,6 +53,7 @@ function SidebarColumnHeader(
         ...getConnectionAwareBrandHeaderOptions({
           headerWidth: sidebar.width,
           trailingItemCount: items.length,
+          showBuildVersion: true,
           onOpenEnvironments: props.onOpenEnvironments,
           fallbackTitleStyle: { fontSize: 18, fontWeight: "800" },
           resolve: m,

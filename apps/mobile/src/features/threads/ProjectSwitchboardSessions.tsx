@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useGT } from "gt-react-native";
 import {
   AuthOrchestrationOperateScope,
@@ -81,11 +81,11 @@ export function ProjectSwitchboardSessions({
   if (rows.length === 0 && cursor === null && error === null) return null;
   return (
     <View>
-      <AppText>{gt("Durable sessions")}</AppText>
       {rows.map((row) => (
-        <Button
+        <Pressable
           key={row.sessionId}
-          label={row.title || gt("Session {id}", { id: row.sessionId })}
+          accessibilityRole="button"
+          className="min-h-12 justify-center border-b border-border/50 px-3 py-2 active:bg-muted"
           disabled={busy || !canOperate || instance === null}
           onPress={() => {
             if (!canOperate || instance === null) return;
@@ -100,12 +100,16 @@ export function ProjectSwitchboardSessions({
               onOpen({ environmentId: project.environmentId, threadId: result.value.threadId });
             }, gt("Could not open durable session"));
           }}
-        />
+        >
+          <AppText className="text-base font-t3-medium" numberOfLines={2}>
+            {row.title || gt("Session {id}", { id: row.sessionId })}
+          </AppText>
+        </Pressable>
       ))}
       {error !== null && <AppText>{error}</AppText>}
       {(cursor !== null || (error !== null && rows.length === 0)) && (
         <Button
-          label={cursor === null ? gt("Retry") : gt("More durable sessions")}
+          label={cursor === null ? gt("Retry") : gt("Show more")}
           disabled={busy}
           onPress={() => {
             void load(cursor);
