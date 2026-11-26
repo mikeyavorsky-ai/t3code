@@ -37,6 +37,11 @@ vi.mock("../cloud/publicConfig.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../cloud/publicConfig.ts")>()),
   hasCloudPublicConfig: true,
 }));
+// Privacy fork: Connect is off in the fork; these tests keep its dormant CLI path covered.
+vi.mock("../policy/managedLimits.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../policy/managedLimits.ts")>()),
+  allowsConnect: () => true,
+}));
 vi.mock("./connect.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./connect.ts")>();
   return {
