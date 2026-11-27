@@ -40,7 +40,6 @@ import {
   findInlinedExternalPackages,
   selectCliRuntimeExternalDependencies,
 } from "./lib/cli-external-packages.ts";
-import { loadRepoEnv } from "./lib/public-config.ts";
 import { selectDesktopRuntimeExternalDependencies } from "./lib/desktop-external-packages.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 import { resolveTaggedSourceVersion } from "./lib/tagged-source-version.ts";
@@ -1401,6 +1400,29 @@ ${associatedDomains}
          child process, with no prompt, unless the app claims these. Terminals
          and coding agents inherit the app's TCC identity, so without these a
          command like ffmpeg or imagesnap gets silent access-denied. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+  </dict>
+</plist>
+`;
+}
+
+/** Privacy fork: what a signed build claims without Connect's passkey entitlements. */
+export function renderMacHardenedRuntimeEntitlements(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
     <key>com.apple.security.device.camera</key>
     <true/>
     <key>com.apple.security.device.audio-input</key>
@@ -2813,7 +2835,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   macPasskeySigning:
     | {
         readonly entitlementsPath: string;
-        readonly provisioningProfilePath: string;
+        readonly provisioningProfilePath?: string;
       }
     | undefined,
   wslRuntimeBundled = false,
@@ -2927,7 +2949,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       ...(macPasskeySigning
         ? {
             entitlements: macPasskeySigning.entitlementsPath,
-            provisioningProfile: macPasskeySigning.provisioningProfilePath,
+            ...(macPasskeySigning.provisioningProfilePath === undefined
+              ? {}
+              : { provisioningProfile: macPasskeySigning.provisioningProfilePath }),
           }
         : {}),
     };
@@ -3907,43 +3931,14 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
 
-  const configuredMacPasskeySigning =
+  // Privacy fork: Connect's Clerk passkeys are gone, so a signed macOS build needs no
+  // provisioning profile and signs with the hardened-runtime entitlements alone.
+  const macEntitlementsPath =
     options.platform === "mac" && options.signed
-      ? yield* Effect.try({
-          try: () => resolveMacPasskeySigningConfiguration(loadRepoEnv({ repoRoot })),
-          catch: MacPasskeySigningConfigurationResolutionError.fromCause,
-        })
+      ? path.join(stageAppDir, "entitlements.mac.plist")
       : undefined;
-  const macPasskeySigning = configuredMacPasskeySigning
-    ? {
-        ...configuredMacPasskeySigning,
-        provisioningProfilePath: path.resolve(
-          repoRoot,
-          configuredMacPasskeySigning.provisioningProfilePath,
-        ),
-      }
-    : undefined;
-  const macEntitlementsPath = macPasskeySigning
-    ? path.join(stageAppDir, "entitlements.mac.plist")
-    : undefined;
-  let macWebAuthn: MacWebAuthnEntitlements | undefined;
-  if (macPasskeySigning && macEntitlementsPath) {
-    if (!(yield* fs.exists(macPasskeySigning.provisioningProfilePath))) {
-      return yield* new MacProvisioningProfileNotFoundError({
-        provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
-      });
-    }
-    macWebAuthn = resolveMacWebAuthnEntitlements(
-      yield* fs.readFileString(macPasskeySigning.provisioningProfilePath),
-      macPasskeySigning,
-    );
-    yield* Effect.log(
-      `[desktop-artifact] In-app browser passkeys: Touch ID ${macWebAuthn.touchIdKeychainAccessGroup ? "enabled" : "disabled"}, browser passkeys ${macWebAuthn.browserPasskeys ? "enabled" : "disabled"}.`,
-    );
-    yield* fs.writeFileString(
-      macEntitlementsPath,
-      renderMacPasskeyEntitlements(macPasskeySigning, macWebAuthn),
-    );
+  if (macEntitlementsPath) {
+    yield* fs.writeFileString(macEntitlementsPath, renderMacHardenedRuntimeEntitlements());
   }
 
   const stageDependencies =
@@ -3969,8 +3964,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,
-    // Read by apps/desktop/src/preview/Passkeys.ts; must match the signed entitlements.
-    ...(macWebAuthn ? { t3codeWebAuthn: macWebAuthn } : {}),
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
@@ -3986,12 +3979,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       options.signed,
       options.mockUpdates,
       options.mockUpdateServerPort,
-      macPasskeySigning && macEntitlementsPath
-        ? {
-            entitlementsPath: macEntitlementsPath,
-            provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
-          }
-        : undefined,
+      macEntitlementsPath ? { entitlementsPath: macEntitlementsPath } : undefined,
       bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
       options.arch,
     ),
