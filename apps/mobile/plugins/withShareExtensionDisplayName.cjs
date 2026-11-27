@@ -51,7 +51,7 @@ function withDisplayNamePlist(config, displayName) {
   ]);
 }
 
-function withExtensionDisplayNameBuildSetting(config, displayName) {
+function withExtensionDisplayNameBuildSetting(config, displayName, teamId) {
   return withXcodeProject(config, (cfg) => {
     const objects = cfg.modResults.hash.project.objects;
     const targetEntry = findByName(objects.PBXNativeTarget, TARGET_NAME);
@@ -72,6 +72,8 @@ function withExtensionDisplayNameBuildSetting(config, displayName) {
       const buildConfiguration = buildConfigurations[reference.value];
       if (buildConfiguration?.buildSettings) {
         buildConfiguration.buildSettings.INFOPLIST_KEY_CFBundleDisplayName = `"${displayName}"`;
+        // expo-sharing leaves the extension's team empty; automatic signing needs it set.
+        if (teamId) buildConfiguration.buildSettings.DEVELOPMENT_TEAM = teamId;
       }
     }
     return cfg;
@@ -83,5 +85,6 @@ module.exports = function withShareExtensionDisplayName(config) {
   return withExtensionDisplayNameBuildSetting(
     withDisplayNamePlist(config, displayName),
     displayName,
+    config.ios?.appleTeamId,
   );
 };
